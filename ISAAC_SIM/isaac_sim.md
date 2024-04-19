@@ -28,6 +28,7 @@
 + 通过Python设计extension，实现extension和仿真热交互
 + 方便导入已存在的extension，并修改源码
 ![alt text](image-1.png)
+
 #### 基于Srcipts Editer
 ![alt text](image-2.png)
 #### 完全基于Python
@@ -47,6 +48,7 @@
   + 检查文件是否正确：增益调节器和关节检查器
 #### 自定义机器人URDF文件导入
 ![alt text](28bc41c4a686a6ad068da9915a3dff1.png)
+
 + GUI导入和调试
   ![alt text](image-4.png)
   + importer:导入URDF/MJCF
