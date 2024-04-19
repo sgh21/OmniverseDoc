@@ -2,6 +2,16 @@
 #### 库概述
 + omni.isaac.core
   + 基本机器人的定义和操作
+  + 内部类
+    + Articulations:关节控制 Robots:关节集合的控制和信息读取
+    + logger:数据存储和读取
+    + Objects:已经实现的几何/物理几何体
+    + World/Simulation contex:好像两者是等价的，都是仿真控制程序，接口和参数都类似
+    + Scene:stage实例添加，清除，对象的获取等
++ omni.isaac.dynamic_control
+  + 机器人动力学控制
++ omni.isaac.utils
+  + 数学运算库
 + omni.isaac.importer
   + 机器人描述文件支持 URDF、MCJF
 + isaac Replicator
@@ -65,8 +75,99 @@
 + 导入传感器
   + create->Isaac->Sensors->...
   + 将相机放在哪个Xform下，它就会跟随哪个Xform移动
-#### Core API
-+ 
+#### 自定义控制器实现
++ Omniverse Isaac Sim 中的控制器继承自 BaseController 接口。您将需要实现一个forward方法，并且它必须返回一个ArticulationAction类型
++ 示例代码
+```python
+from omni.isaac.examples.base_sample import BaseSample
+from omni.isaac.core.utils.nucleus import get_assets_root_path
+from omni.isaac.wheeled_robots.robots import WheeledRobot
+from omni.isaac.core.utils.types import ArticulationAction
+from omni.isaac.core.controllers import BaseController
+import numpy as np
+
+
+class CoolController(BaseController):
+    def __init__(self):
+        super().__init__(name="my_cool_controller")
+        # An open loop controller that uses a unicycle model
+        self._wheel_radius = 0.03
+        self._wheel_base = 0.1125
+        return
+
+    def forward(self, command):
+        # command will have two elements, first element is the forward velocity
+        # second element is the angular velocity (yaw only).
+        joint_velocities = [0.0, 0.0]
+        joint_velocities[0] = ((2 * command[0]) - (command[1] * self._wheel_base)) / (2 * self._wheel_radius)
+        joint_velocities[1] = ((2 * command[0]) + (command[1] * self._wheel_base)) / (2 * self._wheel_radius)
+        # A controller has to return an ArticulationAction
+        return ArticulationAction(joint_velocities=joint_velocities)
+
+
+class HelloWorld(BaseSample):
+    def __init__(self) -> None:
+        super().__init__()
+        return
+
+    def setup_scene(self):
+        world = self.get_world()
+        world.scene.add_default_ground_plane()
+        assets_root_path = get_assets_root_path()
+        jetbot_asset_path = assets_root_path + "/Isaac/Robots/Jetbot/jetbot.usd"
+        world.scene.add(
+            WheeledRobot(
+                prim_path="/World/Fancy_Robot",
+                name="fancy_robot",
+                wheel_dof_names=["left_wheel_joint", "right_wheel_joint"],
+                create_robot=True,
+                usd_path=jetbot_asset_path,
+            )
+        )
+        return
+
+    async def setup_post_load(self):
+        self._world = self.get_world()
+        self._jetbot = self._world.scene.get_object("fancy_robot")
+        self._world.add_physics_callback("sending_actions", callback_fn=self.send_robot_actions)
+        # Initialize our controller after load and the first reset
+        self._my_controller = CoolController()
+        return
+
+    def send_robot_actions(self, step_size):
+        #apply the actions calculated by the controller
+        self._jetbot.apply_action(self._my_controller.forward(command=[0.20, np.pi / 4]))
+        return
+```
+### Core API
++ 从USD Python 和Pixar的接口中抽象出的专门用于机器人应用程序的API
++ World 核心类，提供了关于时间的相关时间，添加回调函数，迭代物理时间步，重置场景，添加任务
+  + Scene实例，管理USD stage的仿真资产，实现stage中添加，操作和检查等
+  + World只能有一个实例
+  + 通过setup_scene()方法，从空的stage中添加资产
++ Task 类，提供了另一种场景创建、信息检索和计算指标模块儿化的方法，使用高级逻辑创造更加复杂的场景
+  + 通过setup_scene()方法添加3D资产到场景，通过get_observation()从simulator获取观测信息，通过pre_step()来逐步执行控制指令。
+### api阅读
++ async关键字用于定义一个异步函数，表明该函数是一个协程，可以在其中使用await关键字等待其他异步操作完成
+异步函数的执行不会阻塞事件循环，而是会立即返回一个协程对象
++ omni.isaac.core
+  + 基本机器人的定义和操作
+  + 内部类
+    + Articulations:关节控制 Robots:关节集合的控制和信息读取
+    + logger:数据存储和读取
+    + Objects:已经实现的几何/物理几何体
+    + World/Simulation contex:好像两者是等价的，都是仿真控制程序，接口和参数都类似
+    + Scene:stage实例添加，清除，对象的获取等
++ omni.isaac.dynamic_control
+  + 机器人动力学控制
++ omni.isaac.utils
+  + 数学运算库
++ omni.isaac.importer
+  + 机器人描述文件支持 URDF、MCJF
++ isaac Replicator
+  + 3D数据合成
++ Lula
+  + 底层运动控制，逆运动学求解器，运动生成等
 ### 教程和资料
 + 官方教程
   + https://www.youtube.com/watch?v=nleDq-oJjGk
